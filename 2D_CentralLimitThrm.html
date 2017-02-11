@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>D3: Central Limit Theorem</title>
+
+		<!-- Load the d3.js script -->
+		<script src="//d3js.org/d3.v3.min.js" charset="utf-8"></script>
+		<!-- Define the style for DOM elements -->
+		<style type="text/css">
+			
+			.axis path,
+			.axis line {
+				fill: none;
+				stroke: black;
+				shape-rendering: crispEdges;
+			}
+			
+			.axis text {
+				font-family: sans-serif;
+				font-size: 11px;
+			}
+
+			h1 {
+				font-family: sans-serif;
+			}
+
+			p {
+				font-family: sans-serif;
+				font-size: 14px;
+			}
+
+			form {
+				font-family: sans-serif;
+				font-size: 14px;
+			}
+
+
+			.labels,.plot,.statistics {
+				float: left;
+				margin-left: 3%;
+			}
+
+			.labels { width: 20%;}
+			.plot { width: 48%;}
+			.statistics { width: 20%; }
+
+			.btn {
+  				-webkit-border-radius: 5;
+				-moz-border-radius: 5;
+				border-radius: 5px;
+				font-family: Arial;
+				color: #ffffff;
+				font-size: 14px;
+				background: #3498db;
+				width: 100%;
+				padding: 10px 20px 10px 20px;
+				text-decoration: none;
+				cursor: pointer;
+				outline: none;
+				}
+
+			.btn:hover {
+  				background: #3cb0fd;
+  				text-decoration: none;
+				}
+
+			input[type=range] {
+			  -webkit-appearance: none;
+			  width: 100%;
+			  margin: 9px 0;
+			  outline: none;
+			}
+			input[type=range]::-webkit-slider-runnable-track {
+			  width: 100%;
+			  height: 7px;
+			  cursor: pointer;
+			  background: #3498db;
+			  border-radius: 4.7px;
+			  border: 1px solid #570101;
+			}
+			input[type=range]::-webkit-slider-thumb {
+			  box-shadow: 1px 1px 1px #000000, 0px 0px 1px #0d0d0d;
+			  border: 0.9px solid #000000;
+			  height: 25px;
+			  width: 10px;
+			  border-radius: 2px;
+			  background: #ffffff;
+			  cursor: pointer;
+			  -webkit-appearance: none;
+			  margin-top: -10px;
+			}
+		
+
+		</style>
+	</head>
+	<body>
+		<h1 align = "center">A 2-Dimensional Visualization of the Central Limit Theorem</h1>
+		<div class = "labels">
+
+			<p>
+			  <label for="sampleSize" 
+			         style="display: inline-block; width: 120px; text-align: left">
+			         Sample size = <span id="sampleSize-value1">…</span>
+			  </label>
+			  <input type="range" min="1" max="20" step="1" value="10" id="sampleSize">
+			</p>	
+
+			<button class="btn" type = "button" onclick = "n1()">Average <span id="sampleSize-value">…</span> points
+			</button>
+
+			<p></p>
+
+			<button class="btn" type = "button" onclick = "n1000()">One thousand averages!
+			</button>
+
+			<p></p>
+
+			<button class="btn" type = "button" onclick = "reset()">Reset
+			</button>
+
+
+		</div>
+
+		<div class = "plot" style="text-align:center;">
+		</div>
+
+		<div class = "statistics">
+			<p class="mean">Averages contained by box: <span id="radius-percentage">0</span>%</p>
+			<p class="slider">
+			  <label for="radius" 
+			         style="display: inline-block; width: 120px; text-align: left">
+			         Box width = <span id="radius-value">…</span>
+			  </label>
+			  <input type="range" min="0" max="100" step="1" value="0" id="radius">
+			</p>
+		</div>
+		<script type="text/javascript">
+
+				//Width and height and ticks
+				var tickVals = [0, 25, 50, 75, 100];
+				var w = 500;
+				var h = 500;
+				var padding = 50;
+				var topPadding = 10;
+				var alpha = 0.1;
+				var delay = 1; // delay in ms for generating 1000 points
+
+				//Dynamic, random dataset
+				var means = [];
+				var dataset = [];		    // Initialize empty array
+				var numDataPoints = 10; // Number of dummy data points to create
+				var maxRange = 100;		  // Max range of new values
+				
+
+				// Sample Size slider update
+				d3.select("#sampleSize").on("input", function() {
+	  			update(+this.value);
+				});
+
+				update(10);
+
+				function update(n) {
+				  // Adjust the text on the range slider
+				  d3.select("#sampleSize-value").text(n);
+				  d3.select("#sampleSize-value1").text(n);
+				  numDataPoints = n;
+				}
+
+
+				// Create scale functions
+				var rScale = d3.scale.linear()
+									 .domain([0, maxRange])
+									 .range([0, w - topPadding - padding]);
+
+				var xScale = d3.scale.linear()
+									 .domain([0, maxRange])
+									 .range([padding, w-topPadding]);
+
+				var yScale = d3.scale.linear()
+									 .domain([0, maxRange])
+									 .range([h - padding, topPadding]);
+
+				// Define X axis
+				var xAxis = d3.svg.axis()
+								  .scale(xScale)
+								  .orient("bottom")
+								  .tickValues(tickVals);
+
+				// Define Y axis
+				var yAxis = d3.svg.axis()
+								  .scale(yScale)
+								  .orient("left")
+								  .tickValues(tickVals);
+
+				// Create SVG element
+				var svg = d3.select(".plot")
+								.append("svg")
+								.attr("width", w)
+								.attr("height", h);
+
+				svg.append("clipPath")
+					.attr("id", "chart-area")
+					.append("rect")
+					.attr("x", padding)
+					.attr("y", topPadding)
+					.attr("width", w-topPadding-padding)
+					.attr("height", h-topPadding-padding);
+
+				svg.append("line")
+					.attr("x1", padding)
+					.attr("y1", topPadding)
+					.attr("x2", w-topPadding)
+					.attr("y2", topPadding)
+					.attr("stroke-width", "1")
+					.attr("stroke", "black");
+
+				svg.append("line")
+					.attr("x1", w-topPadding)
+					.attr("y1", topPadding)
+					.attr("x2", w-topPadding)
+					.attr("y2", h-padding)
+					.attr("stroke-width", "1")
+					.attr("stroke", "black");
+
+
+
+				// Create X axis
+				svg.append("g")
+					.attr("class", "axis")
+					.attr("transform", "translate(0," + (h - padding) + ")")
+					.call(xAxis);
+				
+				// Create Y axis
+				svg.append("g")
+					.attr("class", "axis")
+					.attr("transform", "translate(" + padding + ",0)")
+					.call(yAxis);
+
+
+				var cdfTickVals = [0, 25, 50, 75, 100];
+				var cdfW = 250;
+				var cdfH = 250;
+				var cdfPadding = 25;
+				var cdfTopPadding = 10;
+				var cdfMaxRange = 100;	
+
+				var cdfXScale = d3.scale.linear()
+									 .domain([0, cdfMaxRange])
+									 .range([cdfPadding, cdfW-cdfTopPadding]);
+
+				var cdfYScale = d3.scale.linear()
+									 .domain([0, 1])
+									 .range([cdfH - cdfPadding, cdfTopPadding]);
+
+				// Define X axis
+				var cdfXAxis = d3.svg.axis()
+								  .scale(cdfXScale)
+								  .orient("bottom")
+								  .tickValues(cdfTickVals);
+
+				// Define Y axis
+				var cdfYAxis = d3.svg.axis()
+								  .scale(cdfYScale)
+								  .orient("left")
+								  .ticks(2);
+
+				// Create SVG element
+				var cdfSvg = d3.select(".statistics")
+								.insert("svg",".slider")
+								.attr("id","cdf-svg")
+								.attr("width", cdfW)
+								.attr("height", cdfH);
+
+				cdfSvg.append("clipPath")
+					.attr("id", "cdf-chart-area")
+					.append("rect")
+					.attr("x", cdfPadding)
+					.attr("y", cdfTopPadding)
+					.attr("width", cdfW-cdfTopPadding-cdfPadding)
+					.attr("height", cdfH-cdfTopPadding-cdfPadding)
+
+
+				// Create X axis
+				cdfSvg.append("g")
+					.attr("class", "axis")
+					.attr("transform", "translate(0," + (cdfH - cdfPadding) + ")")
+					.call(cdfXAxis);
+				
+				// Create Y axis
+				cdfSvg.append("g")
+					.attr("class", "axis")
+					.attr("transform", "translate(" + cdfPadding + ",0)")
+					.call(cdfYAxis);
+
+				var line = d3.svg.line()
+						    .x(function(d) { return cdfXScale(d[0]); })
+						    .y(function(d) { return cdfYScale(d[1]); })
+						    .interpolate("linear");
+
+				var area = d3.svg.area()
+						    .x(function(d) { return cdfXScale(d[0]); })
+						    .y0(cdfH - cdfPadding)
+						    .y1(function(d) { return cdfYScale(d[1]); });
+
+
+
+				// On click, generate data points, average, and animate		
+				function n1() {
+					svg.selectAll("rect.box")
+				   	.remove();
+				   	cdfSvg.selectAll("path.cdf-path")
+				   	.remove();
+				   	updateradius(0); 
+				   	updatepercentage(0);
+				   	document.getElementById("radius").value = "0";
+
+						dataset = [];  						 				
+						for (var i = 0; i < numDataPoints; i++) {		
+							var newX = Math.random() * maxRange;
+							var newY = Math.random() * maxRange ;
+							dataset.push([newX, newY]);	
+						}
+
+						var sumX = 0.0;
+						var sumY = 0.0;
+						for (var i = 0; i < dataset.length; i++) {
+							sumX += dataset[i][0];
+							sumY += dataset[i][1];
+						}
+						var meanX = sumX / dataset.length;
+						var meanY = sumY / dataset.length;
+						means.push([meanX,meanY]);					
+
+						svg.selectAll("circle.datapoints")
+				   		.data(dataset)
+				   		.enter()
+				   		.append("circle")
+				   		.attr("cx", function(d) {
+				   			return xScale(d[0]);
+				   		})
+				   		.attr("cy", function(d) {
+				   			return yScale(d[1]);
+				   		})
+				   		.attr("r", 2)
+				   		.attr("class", "datapoints");
+
+				   	svg.selectAll("circle.datapoints")
+						   .transition()
+						   .delay(300)
+	   					 .duration(600)
+						   .attr("cx", xScale(meanX))
+						   .attr("cy", yScale(meanY))
+						   .remove()
+						   .each("end", function() {
+						   	 svg.append("circle")
+				   					.attr("cx", xScale(meanX))
+				   					.attr("cy", yScale(meanY))
+				   					.attr("r", 4)
+				   					.attr("fill", "rgba(0, 0, 0, " + alpha/numDataPoints + ")")
+				   					.attr("class", "meanpoints");
+						   });
+					};
+
+
+
+				// Generate 1000 averages, no animation
+				function n1000() {
+					svg.selectAll("rect.box")
+				   	.remove();
+				   	cdfSvg.selectAll("path.cdf-path")
+				   	.remove();
+				   	updateradius(0); 
+				   	updatepercentage(0);
+				   	document.getElementById("radius").value = "0";
+
+						for (var j = 0; j < 1000; j++) {
+							dataset = []; 			
+							for (var i = 0; i < numDataPoints; i++) {		
+								var newX = Math.random() * maxRange;
+								var newY = Math.random() * maxRange ;
+								dataset.push([newX, newY]);	
+							}
+
+							var sumX = 0.0;
+							var sumY = 0.0;
+							for (var i = 0; i < dataset.length; i++) {
+								sumX += dataset[i][0];
+								sumY += dataset[i][1];
+							}
+							var meanX = sumX / dataset.length;
+							var meanY = sumY / dataset.length;
+							means.push([meanX, meanY]);
+
+							svg.append("circle")
+							.attr("clip-path", "url(#chart-area)")
+					   		.attr("cx", xScale(meanX))
+					   		.attr("cy", yScale(meanY))
+					   		.attr("r", 4)
+					   		.attr("fill", "rgba(0, 0, 0, " + 0 + ")")
+					   		.attr("class", "meanpoints")
+					   		.transition()
+ 								.delay(j*delay)
+ 								.attr("fill", "rgba(0, 0, 0, " + alpha + ")");
+						}
+					};
+
+
+	  			cdf(0);
+
+				function cdf(n) {
+
+					var cdfData = [];
+
+					for (var s = 0; s <= n; s++){
+						pointsContained = 0;
+						percentage = 0;
+
+						if (means.length > 0) {
+							for (var i = 0; i < means.length; i++) {
+								var x = means[i][0];
+								var y = means[i][1];
+
+								if (x < s) {
+									pointsContained += 1;
+								}
+							}
+							percentage =(pointsContained / means.length);
+						}
+						cdfData.push([s,percentage]);
+					}	
+					return cdfData;
+				};
+				
+
+
+				d3.select("#radius").on("input", function() {
+	  			updateradius(+this.value);
+
+	  			// remove the red circle
+					svg.selectAll("rect.box")
+				   	.remove();
+				   	cdfSvg.selectAll("path.cdf-path")
+				   	.remove();
+
+						svg.append("rect")
+				   			.attr("x", xScale(0))
+				   			.attr("y", yScale(maxRange))
+				   			.attr("width", rScale(radius))
+				   			.attr("height", rScale(maxRange))
+				   			.attr("fill", "rgba(255, 0, 0, 0.5)")
+				   			.attr("class", "box");
+
+				   		cdfSvg.append("path")
+						    .attr("d", line(cdf(radius)))
+						    .attr("d", area(cdf(radius)))
+						    .attr("stroke", "black")
+		                    .attr("stroke-width", 2)
+						    .attr("fill", "rgba(255, 0, 0, 0.5)")
+						    .attr("class", "cdf-path");
+
+						pointsContained = 0;
+						percentage = 0;
+
+						if (means.length > 0) {
+							for (var i = 0; i < means.length; i++) {
+								var x = means[i][0];
+								var y = means[i][1];
+
+								if (x < radius) {
+									pointsContained += 1;
+								}
+							}
+							percentage = Math.round((pointsContained / means.length) * 10000) / 100;
+						}
+
+						updatepercentage(percentage);
+				});
+
+				updateradius(0);
+
+				function updateradius(n) {
+				  // adjust the text on the range slider
+				  d3.select("#radius-value").text(n);
+				  radius = n;
+				};
+
+				function updatepercentage(n) {
+				  // adjust the text on the range slider
+				  d3.select("#radius-percentage").text(n);
+				};
+
+				function reset() {
+				   	svg.selectAll("circle")
+				   		 .remove(); 
+				   	svg.selectAll("rect.box")
+				   	.remove();	
+				   	updateradius(0); 
+				   	updatepercentage(0);
+				   	update(10);
+				   	document.getElementById("radius").value = "0";
+				   	document.getElementById("sampleSize").value = "10";
+				   	datapoints = [];
+				   	means = [];
+				   	cdfSvg.selectAll("path.cdf-path")
+				   	.remove();
+				  };
+			</script>
+	</body>
+</html>
